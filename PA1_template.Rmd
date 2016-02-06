@@ -5,21 +5,79 @@ output:
     keep_md: true
 ---
 
+## Utility functions used
+
+```{r echo=TRUE}
+library("kimisc")
+library("chron")
+intervalHHMM2Minute <- function(x) x %/% 100 * 60 + x %% 100
+intervalMinute2HHMM <- function(x) x %/% 60 * 100 + x - x %/% 60 * 60
+```
 
 ## Loading and preprocessing the data
 
-
+```{r echo=TRUE}
+data <- read.csv("activity.csv")
+# Convert interval from HHMM format to minute of the day (collapses the skipped 60..99 ranges)
+data$intervalMinute <- intervalHHMM2Minute(data$interval)
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r echo=TRUE}
+stepsPerDay <- aggregate(steps ~ date, data, sum)
+hist(stepsPerDay$steps, breaks = 10, plot=TRUE)
+meanStepsPerDay <- mean(stepsPerDay$steps)
+medianStepsPerDay <- median(stepsPerDay$steps)
+```
 
+The mean of total number of steps taken per day is `r meanStepsPerDay`, while the median is `r medianStepsPerDay`.
 
 ## What is the average daily activity pattern?
 
+```{r}
+stepsPerInterval <- aggregate(steps ~ intervalMinute, data, mean)
+plot(stepsPerInterval, type="l")
+maxIntervalMinute <- stepsPerInterval$intervalMinute[which.max(stepsPerInterval$steps)]
+maxInterval <- intervalMinute2HHMM(maxIntervalMinute)
+```
+
+The maximum number of steps on average can be found in the `r maxIntervalMinute` minute (In the original data `r maxInterval` HHMM interval).
 
 
 ## Imputing missing values
 
+The input contains `r sum(is.na(data$steps))` missing (`NA`) values.
 
+For further analysis, I will replace `NA` values with the interval average.
+
+```{r}
+dataFilled <- data
+dataFilled$steps <- coalesce.na(data$steps, stepsPerInterval$steps[match(data$intervalMinute, stepsPerInterval$intervalMinute)])
+
+stepsPerDayFilled <- aggregate(steps ~ date, dataFilled, sum)
+hist(stepsPerDayFilled$steps, breaks = 10, plot=TRUE)
+```
+
+After imputing, the mean of total number of steps taken per day is `r mean(stepsPerDayFilled$steps)`, while the median is `r median(stepsPerDayFilled$steps)`.
+
+<!-- 4 -->
+```{r}
+plot(aggregate(steps ~ date, data, length), type="l", ylab="# of records")
+```
+Looking at the # of records in the original input, we can see that there are no partial days. We either have all records for one day, or no records at all. Adding in the average intervals leads to having the daily aggregate being equal to the daily mean.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+<!-- 1 -->
+```{r}
+dataFilled$weekend <- is.weekend(as.Date(dataFilled$date))
+```
+
+<!-- 2 -->
+
+```{r}
+# par(mfrow=c(3,1))
+plot(aggregate(steps ~ intervalMinute, dataFilled[dataFilled$weekend==FALSE,], mean), type="l", col="red")
+lines(aggregate(steps ~ intervalMinute, dataFilled[dataFilled$weekend==TRUE,], mean), type="l", col="blue")
+```
